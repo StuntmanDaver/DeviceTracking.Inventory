@@ -97,6 +97,11 @@ public class InventoryItemsController : ControllerBase
                 {
                     return NotFound(ApiResponse.Fail("Inventory item not found"));
                 }
+
+                // Add ETag for concurrency control
+                var etag = GenerateETag(result.Data);
+                Response.Headers["ETag"] = $"\"{etag}\"";
+
                 return Ok(result);
             }
 
@@ -138,6 +143,11 @@ public class InventoryItemsController : ControllerBase
                 {
                     return NotFound(ApiResponse.Fail("Inventory item not found for the specified barcode"));
                 }
+
+                // Add ETag for concurrency control
+                var etag = GenerateETag(result.Data);
+                Response.Headers["ETag"] = $"\"{etag}\"";
+
                 return Ok(result);
             }
 
@@ -200,32 +210,57 @@ public class InventoryItemsController : ControllerBase
     /// </summary>
     /// <param name="id">Inventory item ID</param>
     /// <param name="dto">Inventory item update data</param>
+    /// <param name="ifMatch">ETag for concurrency control</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated inventory item</returns>
     [HttpPut("{id}")]
     [ProducesResponseType(typeof(ApiResponse<InventoryItemDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse), 400)]
     [ProducesResponseType(typeof(ApiResponse), 404)]
+    [ProducesResponseType(412)] // Precondition Failed for concurrency
     [ProducesResponseType(typeof(ApiResponse), 401)]
     [ProducesResponseType(typeof(ApiResponse), 403)]
     [ProducesResponseType(typeof(ApiResponse), 500)]
     public async Task<ActionResult<ApiResponse<InventoryItemDto>>> Update(
         Guid id,
         [FromBody] UpdateInventoryItemDto dto,
+        [FromHeader(Name = "If-Match")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInformation("Updating inventory item {Id}: {@Dto}", id, dto);
 
+            // Get current item for ETag comparison
+            var existingItemResult = await _inventoryItemService.GetByIdAsync(id, cancellationToken);
+            if (!existingItemResult.IsSuccess || existingItemResult.Data == null)
+            {
+                return NotFound(ApiResponse.Fail("Inventory item not found"));
+            }
+
+            // Generate ETag from current item
+            var currentETag = GenerateETag(existingItemResult.Data);
+
+            // Check concurrency
+            if (!string.IsNullOrEmpty(ifMatch) && !ETagsMatch(ifMatch, currentETag))
+            {
+                _logger.LogWarning("ETag mismatch for item {Id}. Expected: {Expected}, Received: {Received}", id, currentETag, ifMatch);
+                return StatusCode(412, ApiResponse.Fail("Item has been modified by another user. Please refresh and try again."));
+            }
+
             // Get current user ID from claims
             var userId = GetCurrentUserId();
 
             var result = await _inventoryItemService.UpdateAsync(id, dto, userId, cancellationToken);
 
-            if (result.IsSuccess)
+            if (result.IsSuccess && result.Data != null)
             {
                 _logger.LogInformation("Successfully updated inventory item {Id}", id);
+
+                // Generate new ETag for response
+                var newETag = GenerateETag(result.Data);
+                Response.Headers["ETag"] = $"\"{newETag}\"";
+
                 return Ok(result);
             }
 
@@ -411,6 +446,28 @@ public class InventoryItemsController : ControllerBase
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
         return userIdClaim?.Value;
+    }
+
+    /// <summary>
+    /// Generate ETag for an inventory item
+    /// </summary>
+    private string GenerateETag(InventoryItemDto item)
+    {
+        // Create ETag based on last modified timestamp and version
+        var etagData = $"{item.Id}:{item.UpdatedAt?.Ticks ?? item.CreatedAt.Ticks}";
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(etagData));
+        return Convert.ToBase64String(hash);
+    }
+
+    /// <summary>
+    /// Check if ETags match
+    /// </summary>
+    private bool ETagsMatch(string ifMatch, string currentETag)
+    {
+        // Remove quotes from If-Match header if present
+        var cleanIfMatch = ifMatch.Trim('"');
+        return cleanIfMatch == currentETag;
     }
 }
 

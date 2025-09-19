@@ -97,6 +97,11 @@ public class LocationsController : ControllerBase
                 {
                     return NotFound(ApiResponse.Fail("Location not found"));
                 }
+
+                // Add ETag for concurrency control
+                var etag = GenerateETag(result.Data);
+                Response.Headers["ETag"] = $"\"{etag}\"";
+
                 return Ok(result);
             }
 
@@ -138,6 +143,11 @@ public class LocationsController : ControllerBase
                 {
                     return NotFound(ApiResponse.Fail("Location not found"));
                 }
+
+                // Add ETag for concurrency control
+                var etag = GenerateETag(result.Data);
+                Response.Headers["ETag"] = $"\"{etag}\"";
+
                 return Ok(result);
             }
 
@@ -200,32 +210,57 @@ public class LocationsController : ControllerBase
     /// </summary>
     /// <param name="id">Location ID</param>
     /// <param name="dto">Location update data</param>
+    /// <param name="ifMatch">ETag for concurrency control</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated location</returns>
     [HttpPut("{id}")]
     [ProducesResponseType(typeof(ApiResponse<LocationDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse), 400)]
     [ProducesResponseType(typeof(ApiResponse), 404)]
+    [ProducesResponseType(412)] // Precondition Failed for concurrency
     [ProducesResponseType(typeof(ApiResponse), 401)]
     [ProducesResponseType(typeof(ApiResponse), 403)]
     [ProducesResponseType(typeof(ApiResponse), 500)]
     public async Task<ActionResult<ApiResponse<LocationDto>>> Update(
         Guid id,
         [FromBody] UpdateLocationDto dto,
+        [FromHeader(Name = "If-Match")] string? ifMatch = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInformation("Updating location {Id}: {@Dto}", id, dto);
 
+            // Get current location for ETag comparison
+            var existingLocationResult = await _locationService.GetByIdAsync(id, cancellationToken);
+            if (!existingLocationResult.IsSuccess || existingLocationResult.Data == null)
+            {
+                return NotFound(ApiResponse.Fail("Location not found"));
+            }
+
+            // Generate ETag from current location
+            var currentETag = GenerateETag(existingLocationResult.Data);
+
+            // Check concurrency
+            if (!string.IsNullOrEmpty(ifMatch) && !ETagsMatch(ifMatch, currentETag))
+            {
+                _logger.LogWarning("ETag mismatch for location {Id}. Expected: {Expected}, Received: {Received}", id, currentETag, ifMatch);
+                return StatusCode(412, ApiResponse.Fail("Location has been modified by another user. Please refresh and try again."));
+            }
+
             // Get current user ID from claims
             var userId = GetCurrentUserId();
 
             var result = await _locationService.UpdateAsync(id, dto, userId, cancellationToken);
 
-            if (result.IsSuccess)
+            if (result.IsSuccess && result.Data != null)
             {
                 _logger.LogInformation("Successfully updated location {Id}", id);
+
+                // Generate new ETag for response
+                var newETag = GenerateETag(result.Data);
+                Response.Headers["ETag"] = $"\"{newETag}\"";
+
                 return Ok(result);
             }
 
@@ -443,6 +478,28 @@ public class LocationsController : ControllerBase
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
         return userIdClaim?.Value;
+    }
+
+    /// <summary>
+    /// Generate ETag for a location
+    /// </summary>
+    private string GenerateETag(LocationDto location)
+    {
+        // Create ETag based on last modified timestamp and version
+        var etagData = $"{location.Id}:{location.UpdatedAt?.Ticks ?? location.CreatedAt.Ticks}";
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(etagData));
+        return Convert.ToBase64String(hash);
+    }
+
+    /// <summary>
+    /// Check if ETags match
+    /// </summary>
+    private bool ETagsMatch(string ifMatch, string currentETag)
+    {
+        // Remove quotes from If-Match header if present
+        var cleanIfMatch = ifMatch.Trim('"');
+        return cleanIfMatch == currentETag;
     }
 }
 
