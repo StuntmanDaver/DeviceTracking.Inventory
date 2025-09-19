@@ -1,0 +1,54 @@
+# Device Tracking Inventory System - Development Overrides
+# Override configurations for development environment
+
+version: '3.8'
+
+services:
+  # Development API with debugging support
+  api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - ASPNETCORE_LOGGING__CONSOLE__DISABLECOLORS=false
+    volumes:
+      - ./DeviceTracking.Inventory.Api:/app/src/DeviceTracking.Inventory.Api:ro
+      - ./DeviceTracking.Inventory.Application:/app/src/DeviceTracking.Inventory.Application:ro
+      - ./DeviceTracking.Inventory.Infrastructure:/app/src/DeviceTracking.Inventory.Infrastructure:ro
+      - ./DeviceTracking.Inventory.Shared:/app/src/DeviceTracking.Inventory.Shared:ro
+    command: ["dotnet", "watch", "run", "--no-launch-profile"]
+
+  # Development Web with hot reload
+  web:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+    volumes:
+      - ./DeviceTracking.Inventory.Web:/app/src/DeviceTracking.Inventory.Web:ro
+      - ./DeviceTracking.Inventory.Application:/app/src/DeviceTracking.Inventory.Application:ro
+      - ./DeviceTracking.Inventory.Infrastructure:/app/src/DeviceTracking.Inventory.Infrastructure:ro
+      - ./DeviceTracking.Inventory.Shared:/app/src/DeviceTracking.Inventory.Shared:ro
+    command: ["dotnet", "watch", "run", "--no-launch-profile"]
+
+  # Additional development tools
+  adminer:
+    image: adminer:latest
+    container_name: inventory-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - sqlserver
+    networks:
+      - inventory-network
+    restart: unless-stopped
+
+  # PgAdmin alternative for SQL Server
+  azure-data-studio:
+    image: mcr.microsoft.com/mssql/server/tools:latest
+    container_name: inventory-sql-tools
+    environment:
+      - ACCEPT_EULA=Y
+    ports:
+      - "1434:1433"
+    networks:
+      - inventory-network
+    restart: unless-stopped

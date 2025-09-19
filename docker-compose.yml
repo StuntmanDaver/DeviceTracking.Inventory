@@ -1,0 +1,130 @@
+# Device Tracking Inventory System - Development Environment
+# Docker Compose configuration for local development
+
+version: '3.8'
+
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: inventory-db
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong!Passw0rd
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./Database/Setup:/docker-entrypoint-initdb.d
+    networks:
+      - inventory-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrong!Passw0rd -Q 'SELECT 1'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ASP.NET Core Web API
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    container_name: inventory-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__InventoryDb=Server=sqlserver,1433;Database=DeviceTracking_Inventory;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+      - ConnectionStrings__DeviceTrackingDb=Server=sqlserver,1433;Database=DeviceTracking;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+      - InventorySettings__DefaultLocationId=warehouse-001
+      - InventorySettings__LowStockThreshold=10
+      - InventorySettings__ReorderPointMultiplier=1.5
+      - QuickBooksSettings__CompanyFilePath=C:\\QuickBooks\\Company Files\\Sample.qbw
+    ports:
+      - "5000:80"
+      - "5001:443"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - inventory-network
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+  # ASP.NET Core MVC Web Dashboard
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    container_name: inventory-web
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__InventoryDb=Server=sqlserver,1433;Database=DeviceTracking_Inventory;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+      - ConnectionStrings__DeviceTrackingDb=Server=sqlserver,1433;Database=DeviceTracking;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+    ports:
+      - "5002:80"
+    depends_on:
+      - api
+    networks:
+      - inventory-network
+    restart: unless-stopped
+
+  # Mobile PWA (Development server with hot reload)
+  mobile:
+    build:
+      context: ..
+      dockerfile: docker/mobile.Dockerfile
+    container_name: inventory-mobile
+    environment:
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    networks:
+      - inventory-network
+    restart: unless-stopped
+    volumes:
+      - ./DeviceTracking.Inventory.Mobile:/app
+      - /app/node_modules
+
+  # Redis Cache (Optional - for performance optimization)
+  redis:
+    image: redis:7-alpine
+    container_name: inventory-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - inventory-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  # Seq Logging (Optional - for centralized logging)
+  seq:
+    image: datalust/seq:latest
+    container_name: inventory-seq
+    environment:
+      - ACCEPT_EULA=Y
+    ports:
+      - "5341:80"
+    networks:
+      - inventory-network
+    restart: unless-stopped
+    volumes:
+      - seq_data:/data
+
+volumes:
+  sqlserver_data:
+    driver: local
+  redis_data:
+    driver: local
+  seq_data:
+    driver: local
+
+networks:
+  inventory-network:
+    driver: bridge
