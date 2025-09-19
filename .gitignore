@@ -1,0 +1,184 @@
+# .NET Core
+bin/
+obj/
+*.user
+*.aps
+*.pch
+*.vspscc
+*_i.c
+*_p.c
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.tmp
+*.tmp_proj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.log
+*.svclog
+*.scc
+
+# .NET Framework
+*.stackdump
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.cache
+*.ide
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuget
+.nuget/
+packages/
+*.nupkg
+**/packages/*
+!**/packages/build/
+*.nupkg
+**/packages/*
+!**/packages/build/
+**/packages/repositories.config
+**/packages/build/*.nupkg
+
+# .NET Core Tools
+.dotnet/
+tools/
+*.cake
+
+# Rider
+.idea/
+*.sln.iml
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Coverage reports
+*.coverage
+*.coveragexml
+coverage.json
+coverage.opencover.xml
+
+# Test results
+TestResults/
+*.trx
+*.testsettings
+
+# Appsettings
+appsettings.Development.json
+appsettings.Staging.json
+appsettings.Production.json
+
+# Database files
+*.mdf
+*.ldf
+*.ndf
+*.bak
+*.trn
+
+# QuickBooks files
+*.qbw
+*.qbb
+*.qba
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Certificates
+*.pfx
+*.p12
+*.cer
+*.crt
+*.key
+
+# Docker
+.dockerignore
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Node.js (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Backup files
+*.bak
+*.orig
+*.swp
+*.swo
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.stackdump
